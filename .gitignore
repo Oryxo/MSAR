@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+dataset/
+checkpoints/
+results/
+results.txt
+result_long_term_forecast.txt
+test_results/
