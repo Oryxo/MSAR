@@ -120,13 +120,6 @@ If you use MSAR, please cite:
 }
 ```
 
-Fanda Fan and Kuiye Ding contributed equally. Luqi Gong is the corresponding
-author.
-
 ## Acknowledgements
 
-This code is adapted from the [MSAR implementation](https://github.com/fanfanda/MSAR)
-and uses forecasting backbones also available in the
-[Time-Series-Library](https://github.com/thuml/Time-Series-Library). The source
-snapshot did not include a license file; see [UPSTREAM.md](UPSTREAM.md) and
-confirm upstream licensing terms before redistributing the code.
+This code is adapted from [Time-Series-Library](https://github.com/thuml/Time-Series-Library).
