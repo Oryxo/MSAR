@@ -6,7 +6,7 @@
 
 **NeurIPS 2026**
 
-[Paper](https://openreview.net/forum?id=ryJy1ZX3II) · [Getting Started](#getting-started) · [Citation](#citation)
+[Paper](https://openreview.net/forum?id=ryJy1ZX3II) · [PDF](assets/MSAR.pdf) · [Getting Started](#getting-started) · [Citation](#citation)
 
 </div>
 
