@@ -1,5 +1,10 @@
 __pycache__/
+.venv/
+venv/
+.pytest_cache/
 *.py[cod]
+*.log
+logs/
 dataset/
 checkpoints/
 results/

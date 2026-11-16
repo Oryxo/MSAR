@@ -1,7 +1,7 @@
 from data_provider.data_factory import data_provider
-from exp.exp_basic import Exp_Basic
-from utils.tools import EarlyStopping, adjust_learning_rate
-from utils.metrics import metric
+from exp.exp_msar_basic import Exp_Basic
+from utils.msar_tools import EarlyStopping, adjust_learning_rate
+from utils.msar_metrics import metric
 import torch
 import torch.nn as nn
 from torch import optim
@@ -139,9 +139,8 @@ class Exp_Msar_Forecast(Exp_Basic):
                 model_args.true_pred_len = (self.args.pred_len + interval -
                                             1) // interval
                 model_args.task_name = 'imputation'
-                # Slim imputation is optional and only recommended here for
-                # PatchTST. DUET is intentionally not included in this repo;
-                # its imputation width should generally remain full-width.
+                # Compact imputation is the default in the CLI. For DUET,
+                # --full_imputation is recommended to retain forecasting width.
                 if getattr(self.args, 'slim_imputation', False):
                     model_args.d_model = self.args.slim_d_model
                     model_args.d_ff = self.args.slim_d_ff
@@ -968,9 +967,5 @@ class Exp_Msar_Forecast(Exp_Basic):
         # np.save(folder_path + 'pred.npy', preds)
         # np.save(folder_path + 'true.npy', trues)
 
-        for idx, model in enumerate(self.models):
-            path = os.path.join(self.args_list[idx].checkpoints, setting)
-            best_model_path = path + '/' + 'checkpoint.pth'
-            os.remove(best_model_path)
-
+        # Retain the selected checkpoints for inspection and later evaluation.
         return

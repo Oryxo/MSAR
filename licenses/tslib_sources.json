@@ -1,0 +1,13 @@
+{
+  "repository": "thuml/Time-Series-Library",
+  "commit": "4e938a1767106324dd753b2a44832bf870a0252e",
+  "files": {
+    "exp/exp_long_term_forecasting.py": "5c1d282eb6feed27b8ca4034c7268462fe26ebfe",
+    "exp/exp_basic.py": "844aaa8d43557344e19d5c0608bbf0acd8fd9bcb",
+    "utils/tools.py": "08b4f5a569958bbd3f93db094ffc032a92d2720d",
+    "utils/metrics.py": "ccab908c29676f9ad7bb9e62c1946e3d01a4620f",
+    "utils/dtw_metric.py": "5ab39bfdff0781f0155d0801999ed8c1ce0d9292",
+    "utils/augmentation.py": "e574f35f5b58da59a2cb04b072cb141046e26f7a",
+    "utils/dtw.py": "941eae8e227c441da4e7f472e310d3f7bb999a5b"
+  }
+}

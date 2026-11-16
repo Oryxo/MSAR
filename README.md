@@ -4,109 +4,168 @@
 
 ### Next-Scale Autoregressive Forecasting for Time Series via Modular Multi-Scale Decoupling
 
-[Paper](https://openreview.net/forum?id=ryJy1ZX3II) · Forecasting framework and reproducible code
+**NeurIPS 2026**
+
+[Paper](https://openreview.net/forum?id=ryJy1ZX3II) · [Getting Started](#getting-started) · [Citation](#citation)
 
 </div>
 
+## Overview
+
+MSAR is a modular framework for time series forecasting that generates predictions
+from coarse to fine temporal scales. A forecasting module predicts the coarsest
+scale; subsequent imputation modules fill in finer-scale values conditioned on
+the observed history and coarser predictions.
+
+- **Aligned temporal scales.** Each module operates on inputs and outputs at the same resolution.
+- **Coarse-to-fine prediction.** Predictions at one scale guide the next scale.
+- **Modular backbones.** Forecasting and imputation modules share a backbone family and can use different hidden widths.
+
 <p align="center">
-  <img src="assets/framework.png" alt="MSAR coarse-to-fine forecasting framework" width="96%">
+  <img src="assets/framework.png" alt="MSAR: scale-aligned forecasting followed by coarse-to-fine imputation" width="96%">
 </p>
 
-MSAR is a modular, model-agnostic framework for time-series forecasting. It
-forecasts progressively from coarse to fine temporal scales: coarse forecasts
-guide finer-scale models, which refine the predictions at higher resolution.
+The code includes **PatchTST, DLinear, iTransformer, TimeMixer, TimesNet, SimpleTM,
+and DUET**. The initial example script covers **PatchTST on ETTh1**.
 
-This repository includes a shared training pipeline for single-scale baselines
-and MSAR-enhanced models.
+## Getting Started
 
-## Supported backbones
+### 1. Installation
 
-| Backbone | Baseline | + MSAR |
-|---|:---:|:---:|
-| PatchTST | ✓ | ✓ |
-| DLinear | ✓ | ✓ |
-| TimeMixer | ✓ | ✓ |
-| iTransformer | ✓ | ✓ |
-| TimesNet | ✓ | ✓ |
-| SimpleTM | ✓ | ✓ |
-| DUET | ✓ | ✓ |
-
-## Usage
-
-### 1. Environment setup
-
-Use Python 3.9 or newer. Install a [PyTorch build compatible with your CUDA environment](https://pytorch.org/get-started/locally/), then install the remaining requirements:
+The experiment environment uses Python 3.12 and PyTorch 2.8.0. A CUDA-capable GPU
+is recommended for training.
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/Oryxo/MSAR.git
+cd MSAR
+
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
-### 2. Data preparation
+For a specific CUDA build, install the matching PyTorch 2.8.0 package using the
+[official installation instructions](https://pytorch.org/get-started/previous-versions/)
+before installing `requirements.txt`. Check GPU availability with:
 
-The included loaders support ETTh1, ETTh2, ETTm1, ETTm2, and custom CSV files.
-For ETTh1, place the CSV here:
+```bash
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### 2. Prepare the data
+
+Download the preprocessed benchmark datasets provided by
+[Time-Series-Library](https://github.com/thuml/Time-Series-Library) from
+[Google Drive](https://drive.google.com/drive/folders/13Cg1KYOlzM5C7K8gK8NfC-F3EYxkM3D2?usp=sharing),
+[Baidu Drive](https://pan.baidu.com/s/1r3KhGd0Q9PJIUZdfEYoymg?pwd=i9iy), or
+[Hugging Face](https://huggingface.co/datasets/thuml/Time-Series-Library).
+Extract the datasets into `./dataset/`, preserving their subdirectories:
 
 ```text
-./dataset/ETT-small/ETTh1.csv
+dataset/
+├── ETT-small/
+│   ├── ETTh1.csv
+│   ├── ETTh2.csv
+│   ├── ETTm1.csv
+│   └── ETTm2.csv
+├── electricity/electricity.csv
+├── exchange_rate/exchange_rate.csv
+├── traffic/traffic.csv
+├── weather/weather.csv
+└── illness/national_illness.csv
 ```
 
-CSV files should have a `date` column followed by numeric time-series columns.
-For other ETT datasets, set `--data` and `--data_path` to the matching dataset;
-use `--freq t` for ETTm data. For custom data, pass `--data custom` together
-with `--root_path`, `--data_path`, `--target`, and `--freq`.
+Use the matching `--data` name for ETT datasets. For Electricity, Exchange,
+Traffic, Weather, ILI, or other CSV datasets, use `--data custom` and specify
+`--root_path`, `--data_path`, `--target`, and `--freq`. CSV files should contain
+a `date` column and numeric time series columns. Use `--freq t` for ETTm data.
+Only download the datasets needed for your experiments.
 
-### 3. Training and evaluation
+### 3. Train and evaluate
 
-Run commands from the repository root. The default training loss is MAE and the
-default initial learning rate is `1e-3`.
-
-**Baseline** — single scale (`interval_list=1`):
+Run the PatchTST + MSAR example for a prediction length of 96:
 
 ```bash
-python run.py \
-  --model PatchTST \
-  --data ETTh1 --root_path ./dataset/ETT-small --data_path ETTh1.csv \
-  --seq_len 336 --label_len 0 --pred_len 96 \
-  --interval_list 1 --seq_len_list 336 \
-  --loss MAE
+PRED_LENS=96 bash scripts/PatchTST/ETTh1.sh
 ```
 
-**MSAR** — coarse scale followed by full-resolution refinement:
+Run all four prediction lengths (`96`, `192`, `336`, and `720`):
 
 ```bash
-bash scripts/run_msar.sh
+bash scripts/PatchTST/ETTh1.sh
 ```
 
-The example uses `interval_list=6,1`, `seq_len_list=56,336`, and enables slim
-imputation (`d_model=16`, `d_ff=32`). Set `MODEL` to choose a different
-backbone, for example:
+The script trains the scale-specific modules, performs joint training with the
+coarse forecasting module frozen, and evaluates the final model on the test set.
+It uses **compact imputation by default**: `d_model=16` and `d_ff=32`. The
+forecasting module retains `d_model=512` and `d_ff=2048`.
+
+You can select a GPU, dataset directory, prediction lengths, or random seed:
 
 ```bash
-MODEL=TimeMixer bash scripts/run_msar.sh
-MODEL=DLinear bash scripts/run_msar.sh
-MODEL=SimpleTM bash scripts/run_msar.sh
+GPU=0 ROOT_PATH=./dataset/ETT-small PRED_LENS="96 192" SEED=2021 \
+  bash scripts/PatchTST/ETTh1.sh
 ```
 
-**DUET:** slimming the imputation model is not recommended based on our width
-comparison. The script automatically leaves DUET full-width:
+### 4. Run a baseline
+
+Use the independent Time-Series-Library forecasting pipeline for a baseline:
 
 ```bash
-MODEL=DUET bash scripts/run_msar.sh
+python run.py --task_name long_term_forecast \
+  --model PatchTST --data ETTh1 \
+  --root_path ./dataset/ETT-small --data_path ETTh1.csv \
+  --seq_len 336 --label_len 0 --pred_len 96
 ```
 
-To train with MSE, pass `--loss MSE` to `run.py` or edit the example script.
-Use `python run.py --help` for model-specific parameters. The available
-backbones and MSAR training stages are implemented in `models/` and `exp/`.
+This path trains one forecasting model with **MSE by default**, without MSAR
+teacher-forcing or joint training. Pass `--loss MAE` for a comparison with the
+MAE objective used by the MSAR example. The original TSLib experiment class is
+retained; MAE and the tuple-output DUET/SimpleTM backbones use a separate adapter.
+
+> **DUET + MSAR:** We recommend `--full_imputation` so that imputation uses the
+> same `d_model` and `d_ff` as forecasting. Other MSAR runs default to compact
+> imputation (`16/32`). DLinear does not use these hidden-width parameters.
+
+```bash
+python run.py --task_name msar_forecasting --model DUET --full_imputation
+```
+
+Use `python run.py --help` for additional options.
 
 ## Outputs
 
-- Checkpoints: `./checkpoints/`
-- Test metrics: appended to `./results.txt` by default; change with `--result_file`
-- Dataset, checkpoint, and generated result files are excluded by `.gitignore`.
+| Location | Contents |
+|---|---|
+| `results.txt` | Test MSE and MAE, appended after each run |
+| `logs/PatchTST/ETTh1/` | Training and evaluation logs from the example script |
+| `checkpoints/model_<index>/<setting>/checkpoint.pth` | MSAR weights for each scale |
+| `checkpoints/<setting>/checkpoint.pth` | Baseline weights |
+| `results/<setting>/` | Baseline predictions, labels, and metrics saved by TSLib |
+
+Metrics are computed on normalized data. Change `--result_file` and
+`--checkpoints` to use different output locations. The training pipeline also
+writes `result_long_term_forecast.txt`. Data, logs, and generated outputs are
+excluded from version control.
+
+## Repository Structure
+
+```text
+MSAR/
+├── assets/                   # Framework illustration
+├── data_provider/            # Dataset loaders and data splits
+├── exp/                      # Independent TSLib and MSAR experiments
+├── layers/                   # Shared neural network layers
+├── models/                   # Forecasting and imputation backbones
+├── scripts/PatchTST/ETTh1.sh  # Initial training example
+├── utils/                    # Metrics and training utilities
+├── requirements.txt
+└── run.py                    # Command-line entry point
+```
 
 ## Citation
 
-If you use MSAR, please cite:
+If you use MSAR in your research, please cite:
 
 ```bibtex
 @inproceedings{fan2026msar,
@@ -120,6 +179,10 @@ If you use MSAR, please cite:
 }
 ```
 
-## Acknowledgements
+## Acknowledgments
 
-This code is adapted from [Time-Series-Library](https://github.com/thuml/Time-Series-Library).
+We thank the authors and maintainers of
+[Time-Series-Library](https://github.com/thuml/Time-Series-Library),
+[PatchTST](https://github.com/yuqinie98/PatchTST), and
+[iTransformer](https://github.com/thuml/iTransformer) for their code and datasets,
+and the authors of the other backbones included in this project.

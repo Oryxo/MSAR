@@ -7,10 +7,14 @@ import pandas as pd
 import torch
 
 from exp.exp_msar_forecasting import Exp_Msar_Forecast
+from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
+from exp.exp_forecast import Exp_Forecast
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train PatchTST baseline or PatchTST + MSAR.")
+    parser = argparse.ArgumentParser(description="Train and evaluate MSAR or a single-scale forecasting baseline.")
+    parser.add_argument("--task_name", choices=["msar_forecasting", "long_term_forecast"],
+                        help="MSAR or the independent TSLib baseline. Without this option, interval_list=1 selects the baseline.")
     parser.add_argument("--model", default="PatchTST", choices=[
         "PatchTST", "DLinear", "TimeMixer", "iTransformer", "TimesNet",
         "SimpleTM", "DUET",
@@ -24,8 +28,8 @@ def parse_args():
     parser.add_argument("--seq_len", type=int, default=336)
     parser.add_argument("--label_len", type=int, default=0)
     parser.add_argument("--pred_len", type=int, default=96)
-    parser.add_argument("--interval_list", type=lambda s: [int(v) for v in s.split(",")], default=[1])
-    parser.add_argument("--seq_len_list", type=lambda s: [int(v) for v in s.split(",")], default=[336])
+    parser.add_argument("--interval_list", type=lambda s: [int(v) for v in s.split(",")], default=[6, 1])
+    parser.add_argument("--seq_len_list", type=lambda s: [int(v) for v in s.split(",")], default=[56, 336])
     parser.add_argument("--d_model", type=int, default=512)
     parser.add_argument("--d_ff", type=int, default=2048)
     parser.add_argument("--n_heads", type=int, default=8)
@@ -36,19 +40,27 @@ def parse_args():
     parser.add_argument("--factor", type=int, default=1)
     parser.add_argument("--activation", default="gelu")
     parser.add_argument("--embed", default="timeF", choices=["timeF", "fixed", "learned"])
-    parser.add_argument("--loss", default="MAE", choices=["MSE", "MAE"])
+    parser.add_argument("--loss", default=None, choices=["MSE", "MAE"],
+                        help="Default: MAE for MSAR, original TSLib MSE for the baseline.")
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--train_epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--patience", type=int, default=3)
-    parser.add_argument("--lradj", default="type1", choices=["type1", "constant"])
+    parser.add_argument("--lradj", default="type1", choices=["type1", "type2", "type3", "cosine", "constant"])
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=2021)
     parser.add_argument("--checkpoints", default="./checkpoints")
     parser.add_argument("--result_file", default="./results.txt")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--no_gpu", action="store_true")
-    parser.add_argument("--slim_imputation", action="store_true", help="Slim MSAR imputation models only.")
+    parser.add_argument("--use_amp", action="store_true", help="Enable AMP for the TSLib baseline.")
+    parser.add_argument("--use_dtw", action="store_true", help="Calculate test DTW for the TSLib baseline.")
+    width = parser.add_mutually_exclusive_group()
+    width.add_argument("--slim_imputation", dest="slim_imputation", action="store_true",
+                       help="Use compact imputation models (default: d_model=16, d_ff=32).")
+    width.add_argument("--full_imputation", dest="slim_imputation", action="store_false",
+                       help="Match imputation width to forecasting width; recommended for DUET.")
+    parser.set_defaults(slim_imputation=True)
     parser.add_argument("--slim_d_model", type=int, default=16)
     parser.add_argument("--slim_d_ff", type=int, default=32)
     # Shared TimesLib model options.
@@ -70,7 +82,8 @@ def parse_args():
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--l1_weight", type=float, default=5e-5)
     parser.add_argument("--geomattn_dropout", type=float, default=0.5)
-    # DUET options. DUET imputation slimming is available but not recommended.
+    # DUET: --full_imputation is recommended so that imputation uses the same
+    # d_model/d_ff as forecasting. Other backbones use slim imputation by default.
     parser.add_argument("--num_experts", type=int, default=3)
     parser.add_argument("--k", type=int, default=1)
     parser.add_argument("--hidden_size", type=int, default=256)
@@ -80,14 +93,34 @@ def parse_args():
     return parser.parse_args()
 
 
+def configure_task(cli):
+    if cli.task_name is None:
+        cli.task_name = "long_term_forecast" if cli.interval_list == [1] else "msar_forecasting"
+    if cli.task_name == "msar_forecasting":
+        if len(cli.interval_list) != len(cli.seq_len_list):
+            raise ValueError("interval_list and seq_len_list must have the same number of entries")
+        if len(cli.interval_list) < 2 or cli.interval_list[-1] != 1:
+            raise ValueError("MSAR requires at least two scales ending in interval 1; use --task_name long_term_forecast for a baseline")
+        if cli.lradj not in {"type1", "constant"}:
+            raise ValueError("MSAR supports type1 or constant learning rate schedules")
+        if cli.use_amp or cli.use_dtw:
+            raise ValueError("--use_amp and --use_dtw currently apply to the TSLib baseline only")
+        cli.loss = cli.loss or "MAE"
+        return Exp_Msar_Forecast
+    else:
+        cli.slim_imputation = False
+        cli.loss = cli.loss or "MSE"
+        if cli.lradj == "constant":
+            raise ValueError("The original TSLib scheduler supports type1, type2, type3, or cosine")
+        # Keep the original MSE experiment class for TSLib tensor-output models.
+        if cli.loss == "MAE" or cli.model in {"DUET", "SimpleTM"}:
+            return Exp_Forecast
+        return Exp_Long_Term_Forecast
+
+
 def main():
     cli = parse_args()
-    if len(cli.interval_list) != len(cli.seq_len_list):
-        raise ValueError("interval_list and seq_len_list must have the same number of entries")
-    if cli.interval_list[-1] != 1:
-        raise ValueError("The final MSAR scale must use interval 1")
-    if cli.slim_imputation and len(cli.interval_list) < 2:
-        raise ValueError("--slim_imputation applies only when MSAR has imputation scales")
+    experiment_class = configure_task(cli)
 
     random.seed(cli.seed)
     np.random.seed(cli.seed)
@@ -98,16 +131,15 @@ def main():
     args = SimpleNamespace(**vars(cli))
     args.model = cli.model
     args.model_id = f"{cli.data}_pred{cli.pred_len}"
-    args.task_name = "msar_forecasting"
+    args.task_name = cli.task_name
     args.is_training = 1
     csv_path = f"{cli.root_path.rstrip('/')}/{cli.data_path}"
     n_features = len(pd.read_csv(csv_path, nrows=1).columns) - 1
     if cli.features == "S":
         n_features = 1
     args.enc_in = args.dec_in = args.c_out = n_features
-    args.use_gpu = not cli.no_gpu
+    args.use_gpu = not cli.no_gpu and torch.cuda.is_available()
     args.use_multi_gpu = False
-    args.use_amp = False
     args.use_dec_inp = False
     args.inverse = False
     args.device = torch.device(f"cuda:{cli.gpu}" if args.use_gpu and torch.cuda.is_available() else "cpu")
@@ -115,13 +147,18 @@ def main():
     args.itr = 1
     args.des = "patchtst_msar"
 
-    setting = f"{cli.model}_{cli.data}_pred{cli.pred_len}_interval{'-'.join(map(str, cli.interval_list))}_seed{cli.seed}"
-    exp = Exp_Msar_Forecast(args)
+    setting = f"{cli.task_name}_{cli.model}_{cli.data}_pred{cli.pred_len}_seed{cli.seed}_loss{cli.loss}"
+    if cli.task_name == "msar_forecasting":
+        setting += f"_interval{'-'.join(map(str, cli.interval_list))}"
+        width = f"{cli.slim_d_model}-{cli.slim_d_ff}" if cli.slim_imputation else f"{cli.d_model}-{cli.d_ff}"
+        setting += f"_imputation{width}"
+    exp = experiment_class(args)
+    print(f"Experiment: {experiment_class.__name__}; training loss: {cli.loss}")
     print(f"Training setting: {setting}")
     if cli.slim_imputation:
         print(f"Slim imputation enabled: d_model={cli.slim_d_model}, d_ff={cli.slim_d_ff}")
         if cli.model == "DUET":
-            print("WARNING: DUET imputation slimming is not recommended; remove --slim_imputation for full-width DUET.")
+            print("DUET recommendation: use --full_imputation to match forecasting width.")
     exp.train(setting)
     import os
     legacy_result = "result_long_term_forecast.txt"

@@ -1,6 +1,9 @@
-numpy
-pandas
-scikit-learn
-torch
-einops
-PyWavelets
+numpy==2.3.2
+pandas==2.2.3
+scikit-learn==1.6.1
+torch==2.8.0
+einops==0.8.1
+PyWavelets==1.8.0
+matplotlib>=3.9,<4
+scipy>=1.13,<2
+tqdm>=4.66,<5
