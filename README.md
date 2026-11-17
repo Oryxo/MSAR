@@ -1,21 +1,16 @@
-<div align="center">
-
 # MSAR
 
-### Next-Scale Autoregressive Forecasting for Time Series via Modular Multi-Scale Decoupling
+[![arXiv](https://img.shields.io/badge/arXiv-2611.20714-b31b1b.svg)](https://arxiv.org/abs/2611.20714)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**NeurIPS 2026**
-
-[Paper](https://openreview.net/forum?id=ryJy1ZX3II) · [PDF](assets/MSAR.pdf) · [Getting Started](#getting-started) · [Citation](#citation)
-
-</div>
+**Next-Scale Autoregressive Forecasting for Time Series via Modular Multi-Scale Decoupling** (NeurIPS 2026)
 
 ## Overview
 
-MSAR is a modular framework for time series forecasting that generates predictions
-from coarse to fine temporal scales. A forecasting module predicts the coarsest
-scale; subsequent imputation modules fill in finer-scale values conditioned on
-the observed history and coarser predictions.
+**MSAR** is a modular framework for time series forecasting that generates
+predictions from coarse to fine temporal scales. A forecasting module first
+predicts the coarsest scale, then imputation modules progressively fill in
+finer-scale values using the observed history and coarser predictions.
 
 - **Aligned temporal scales.** Each module operates on inputs and outputs at the same resolution.
 - **Coarse-to-fine prediction.** Predictions at one scale guide the next scale.
@@ -25,8 +20,8 @@ the observed history and coarser predictions.
   <img src="assets/framework.png" alt="MSAR: scale-aligned forecasting followed by coarse-to-fine imputation" width="96%">
 </p>
 
-The code includes **PatchTST, DLinear, iTransformer, TimeMixer, TimesNet, SimpleTM,
-and DUET**. The initial example script covers **PatchTST on ETTh1**.
+**Supported backbones:** PatchTST, DLinear, iTransformer, TimeMixer, TimesNet,
+SimpleTM, and DUET. Start with the **PatchTST on ETTh1** example below.
 
 ## Getting Started
 
@@ -152,7 +147,7 @@ excluded from version control.
 
 ```text
 MSAR/
-├── assets/                   # Framework illustration
+├── assets/                   # Paper PDF and framework illustration
 ├── data_provider/            # Dataset loaders and data splits
 ├── exp/                      # Independent TSLib and MSAR experiments
 ├── layers/                   # Shared neural network layers
@@ -168,14 +163,14 @@ MSAR/
 If you use MSAR in your research, please cite:
 
 ```bibtex
-@inproceedings{fan2026msar,
-  title     = {{MSAR}: Next-Scale Autoregressive Forecasting for Time Series via Modular Multi-Scale Decoupling},
-  author    = {Fanda Fan and Kuiye Ding and Liming Mao and Bingsong Wang and
-               Yao Wang and Xiaorui Wang and Ruijie Jian and Zhipeng Liu and
-               Luqi Gong and Zhenghua Lu and Chunjie Luo and Jianfeng Zhan},
-  booktitle = {The Fortieth Annual Conference on Neural Information Processing Systems},
-  year      = {2026},
-  url       = {https://openreview.net/forum?id=ryJy1ZX3II}
+@misc{fan2026msarnextscaleautoregressiveforecasting,
+  title         = {MSAR: Next-Scale Autoregressive Forecasting for Time Series via Modular Multi-Scale Decoupling},
+  author        = {Fanda Fan and Kuiye Ding and Liming Mao and Bingsong Wang and Yao Wang and Xiaorui Wang and Ruijie Jian and Zhipeng Liu and Luqi Gong and Zhenghua Lu and Chunjie Luo and Jianfeng Zhan},
+  year          = {2026},
+  eprint        = {2611.20714},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2611.20714},
 }
 ```
 
@@ -186,3 +181,9 @@ We thank the authors and maintainers of
 [PatchTST](https://github.com/yuqinie98/PatchTST), and
 [iTransformer](https://github.com/thuml/iTransformer) for their code and datasets,
 and the authors of the other backbones included in this project.
+
+## License
+
+MSAR is released under the [MIT License](LICENSE). Third-party code remains
+subject to its original licenses; see [licenses/](licenses/) and the notices
+in the source files.
