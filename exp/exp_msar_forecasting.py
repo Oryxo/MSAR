@@ -1,5 +1,5 @@
 from data_provider.data_factory import data_provider
-from exp.exp_msar_basic import Exp_Basic
+from exp.exp_basic import Exp_Basic
 from utils.msar_tools import EarlyStopping, adjust_learning_rate
 from utils.msar_metrics import metric
 import torch
@@ -10,7 +10,6 @@ import time
 import warnings
 import numpy as np
 import copy
-from models import DUET, DLinear, PatchTST, SimpleTM, TimeMixer, TimesNet, iTransformer
 
 warnings.filterwarnings('ignore')
 
@@ -18,19 +17,7 @@ warnings.filterwarnings('ignore')
 class Exp_Msar_Forecast(Exp_Basic):
 
     def __init__(self, args):
-        # super(Exp_Msar_Forecast, self).__init__(args) # Not initialize parent class
-        self.args = args
-        self.model_dict = {
-            'PatchTST': PatchTST,
-            'DLinear': DLinear,
-            'TimeMixer': TimeMixer,
-            'iTransformer': iTransformer,
-            'TimesNet': TimesNet,
-            'SimpleTM': SimpleTM,
-            'DUET': DUET,
-        }
-
-        self.device = self._acquire_device()
+        super().__init__(args)
         self.models = [m.to(self.device) for m in self._build_model()]
 
         model_input_read_len = np.array(self.args.seq_len_list) * np.array(
@@ -146,7 +133,7 @@ class Exp_Msar_Forecast(Exp_Basic):
                     model_args.d_ff = self.args.slim_d_ff
 
             # Create model instance
-            model = self.model_dict[self.args.model].Model(model_args).float()
+            model = self.model_dict[self.args.model](model_args).float()
 
             # Wrap with DataParallel if using multiple GPUs
             if self.args.use_multi_gpu and self.args.use_gpu:
@@ -167,24 +154,6 @@ class Exp_Msar_Forecast(Exp_Basic):
 
         return models
 
-    def _forward_any(self, model, x, x_mark, dec_inp, y_mark, mask=None):
-        """
-        Compatible with models that return either y or (y, attn).
-        - For models requiring a mask, pass the mask as the 5th parameter as per the current implementation.
-        - Returns: (outputs, attn) where attn may be None.
-        """
-        if mask is None:
-            out = model(x, x_mark, dec_inp, y_mark)
-        else:
-            out = model(x, x_mark, dec_inp, y_mark, mask)
-
-        if isinstance(out, tuple):
-            # Common convention: (outputs, attn)
-            outputs, aux = out[0], out[1]
-        else:
-            outputs, aux = out, None
-        return outputs, aux
-
     def _get_data(self, args, flag):
         data_set, data_loader = data_provider(args, flag)
         return data_set, data_loader
@@ -193,16 +162,6 @@ class Exp_Msar_Forecast(Exp_Basic):
         model_optim = optim.Adam(model.parameters(),
                                  lr=self.args.learning_rate)
         return model_optim
-
-    def _select_criterion(self):
-        if self.args.loss.lower() == 'mse':
-            criterion = nn.MSELoss()
-        else:
-            criterion = nn.L1Loss()
-
-        if self.args.data == 'PEMS':
-            criterion = nn.L1Loss()
-        return criterion
 
     def train_tf(self, setting, idx):
         train_data, train_loader = self._get_data(args=self.args_list[idx],
@@ -307,10 +266,7 @@ class Exp_Msar_Forecast(Exp_Basic):
 
                     loss = criterion(outputs[mask == 0], batch_x[mask == 0])
 
-                if self.args.model == 'SimpleTM' and self.args.l1_weight > 0:
-                    loss = loss + self.args.l1_weight * aux[0]
-                elif self.args.model == 'DUET':
-                    loss = loss + 0.001 * aux
+                loss = loss + self._auxiliary_loss(aux)
 
                 train_loss.append(loss.item())
 
@@ -609,10 +565,7 @@ class Exp_Msar_Forecast(Exp_Basic):
                                                         true_pred_len:, :]
                     loss = criterion(output_temp[idx], target_temp[idx])
 
-                    if self.args.model == 'SimpleTM' and self.args.l1_weight > 0:
-                        loss = loss + self.args.l1_weight * aux[0]
-                    elif self.args.model == 'DUET':
-                        loss = loss + 0.001 * aux
+                    loss = loss + self._auxiliary_loss(aux)
 
                     if idx != 0:
                         train_loss.append((total_loss + loss).item())

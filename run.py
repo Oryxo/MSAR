@@ -8,7 +8,6 @@ import torch
 
 from exp.exp_msar_forecasting import Exp_Msar_Forecast
 from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
-from exp.exp_forecast import Exp_Forecast
 
 
 def parse_args():
@@ -40,8 +39,8 @@ def parse_args():
     parser.add_argument("--factor", type=int, default=1)
     parser.add_argument("--activation", default="gelu")
     parser.add_argument("--embed", default="timeF", choices=["timeF", "fixed", "learned"])
-    parser.add_argument("--loss", default=None, choices=["MSE", "MAE"],
-                        help="Default: MAE for MSAR, original TSLib MSE for the baseline.")
+    parser.add_argument("--loss", default="MAE", choices=["MSE", "MAE"],
+                        help="Training loss for both MSAR and the baseline (default: MAE).")
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--train_epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=32)
@@ -105,16 +104,11 @@ def configure_task(cli):
             raise ValueError("MSAR supports type1 or constant learning rate schedules")
         if cli.use_amp or cli.use_dtw:
             raise ValueError("--use_amp and --use_dtw currently apply to the TSLib baseline only")
-        cli.loss = cli.loss or "MAE"
         return Exp_Msar_Forecast
     else:
         cli.slim_imputation = False
-        cli.loss = cli.loss or "MSE"
         if cli.lradj == "constant":
             raise ValueError("The original TSLib scheduler supports type1, type2, type3, or cosine")
-        # Keep the original MSE experiment class for TSLib tensor-output models.
-        if cli.loss == "MAE" or cli.model in {"DUET", "SimpleTM"}:
-            return Exp_Forecast
         return Exp_Long_Term_Forecast
 
 

@@ -1,7 +1,7 @@
 import os
 import torch
+import torch.nn as nn
 import importlib
-import pkgutil  
 
 # Just put your model files under models/ folder
 # e.g., models/Transformer.py, models/LSTM.py, etc.
@@ -20,7 +20,34 @@ class Exp_Basic(object):
         self.model_dict = LazyModelDict(model_map)
 
         self.device = self._acquire_device()
-        self.model = self._build_model().to(self.device)
+
+    def _forward_any(self, model, x, x_mark, dec_inp, y_mark, mask=None):
+        """Return predictions and optional model-specific auxiliary information."""
+        if mask is None:
+            output = model(x, x_mark, dec_inp, y_mark)
+        else:
+            output = model(x, x_mark, dec_inp, y_mark, mask)
+        if isinstance(output, tuple):
+            return output[0], output[1]
+        return output, None
+
+    def _select_criterion(self):
+        loss = self.args.loss.upper()
+        if loss == "MAE":
+            return nn.L1Loss()
+        if loss == "MSE":
+            return nn.MSELoss()
+        raise ValueError(f"Unsupported loss: {self.args.loss}")
+
+    def _auxiliary_loss(self, aux):
+        """Training regularizers; other auxiliary outputs (e.g. attention) are ignored."""
+        if aux is None:
+            return 0.0
+        if self.args.model == "DUET":
+            return 0.001 * aux
+        if self.args.model == "SimpleTM" and self.args.l1_weight > 0:
+            return self.args.l1_weight * aux[0]
+        return 0.0
 
     def _scan_models_directory(self):
         """
@@ -50,12 +77,10 @@ class Exp_Basic(object):
         return None
 
     def _acquire_device(self):
-        if self.args.use_gpu and self.args.gpu_type == 'cuda':
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(
-                self.args.gpu) if not self.args.use_multi_gpu else self.args.devices
+        if self.args.use_gpu and self.args.gpu_type == 'cuda' and torch.cuda.is_available():
             device = torch.device('cuda:{}'.format(self.args.gpu))
             print('Use GPU: cuda:{}'.format(self.args.gpu))
-        elif self.args.use_gpu and self.args.gpu_type == 'mps':
+        elif self.args.use_gpu and self.args.gpu_type == 'mps' and torch.backends.mps.is_available():
             device = torch.device('mps')
             print('Use GPU: mps')
         else:

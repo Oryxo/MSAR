@@ -104,7 +104,7 @@ GPU=0 ROOT_PATH=./dataset/ETT-small PRED_LENS="96 192" SEED=2021 \
 
 ### 4. Run a baseline
 
-Use the independent Time-Series-Library forecasting pipeline for a baseline:
+Use the independent forecasting pipeline adapted from Time-Series-Library for a baseline:
 
 ```bash
 python run.py --task_name long_term_forecast \
@@ -113,10 +113,11 @@ python run.py --task_name long_term_forecast \
   --seq_len 336 --label_len 0 --pred_len 96
 ```
 
-This path trains one forecasting model with **MSE by default**, without MSAR
-teacher-forcing or joint training. Pass `--loss MAE` for a comparison with the
-MAE objective used by the MSAR example. The original TSLib experiment class is
-retained; MAE and the tuple-output DUET/SimpleTM backbones use a separate adapter.
+Both MSAR and the baseline use **MAE by default**; pass `--loss MSE` to use MSE.
+The baseline trains one forecasting model, without MSAR teacher-forcing or
+joint training. The two experiment classes share model-output handling and
+loss selection in `exp/exp_basic.py`, including DUET/SimpleTM auxiliary losses
+during training. Validation uses prediction loss only.
 
 > **DUET + MSAR:** We recommend `--full_imputation` so that imputation uses the
 > same `d_model` and `d_ff` as forecasting. Other MSAR runs default to compact
